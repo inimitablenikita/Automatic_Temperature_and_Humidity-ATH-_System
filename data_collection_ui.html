@@ -1,0 +1,457 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>ESP32 & Weather Data Dashboard</title>
+    <style>
+        :root {
+            --primary-color: #2c3e50;
+            --secondary-color: #3498db;
+            --accent-color: #e74c3c;
+            --light-color: #ecf0f1;
+            --dark-color: #2c3e50;
+            --success-color: #2ecc71;
+            --warning-color: #f39c12;
+        }
+        
+        * {
+            box-sizing: border-box;
+            margin: 0;
+            padding: 0;
+        }
+        
+        body {
+            font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
+            background: linear-gradient(135deg, #f5f7fa 0%, #c3cfe2 100%);
+            color: var(--dark-color);
+            line-height: 1.6;
+            padding: 20px;
+            min-height: 100vh;
+        }
+        
+        .container {
+            max-width: 1800px;
+            margin: 0 auto;
+            padding: 30px;
+            background-color: rgba(255, 255, 255, 0.95);
+            box-shadow: 0 10px 30px rgba(0, 0, 0, 0.1);
+            border-radius: 15px;
+            transition: all 0.3s ease;
+        }
+        
+        header {
+            text-align: center;
+            margin-bottom: 40px;
+        }
+        
+        h1 {
+            color: var(--primary-color);
+            font-size: 2.5rem;
+            margin-bottom: 10px;
+            position: relative;
+            display: inline-block;
+        }
+        
+        h1:after {
+            content: '';
+            position: absolute;
+            width: 60%;
+            height: 4px;
+            background: var(--secondary-color);
+            bottom: -10px;
+            left: 20%;
+            border-radius: 2px;
+        }
+        
+        .dashboard {
+            display: flex;
+            flex-wrap: wrap;
+            gap: 30px;
+            justify-content: space-between;
+        }
+        
+        .panel {
+            flex: 1 1 450px;
+            background: white;
+            border-radius: 12px;
+            padding: 25px;
+            box-shadow: 0 5px 15px rgba(0, 0, 0, 0.05);
+            transition: transform 0.3s ease, box-shadow 0.3s ease;
+        }
+        
+        .panel:hover {
+            transform: translateY(-5px);
+            box-shadow: 0 15px 30px rgba(0, 0, 0, 0.1);
+        }
+        
+        .panel-header {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            margin-bottom: 20px;
+        }
+        
+        h2 {
+            color: var(--secondary-color);
+            font-size: 1.5rem;
+            margin: 0;
+            display: flex;
+            align-items: center;
+        }
+        
+        h2 svg {
+            margin-right: 10px;
+        }
+        
+        .refresh-btn {
+            background-color: var(--secondary-color);
+            color: white;
+            border: none;
+            padding: 8px 15px;
+            border-radius: 5px;
+            cursor: pointer;
+            font-weight: bold;
+            display: flex;
+            align-items: center;
+            gap: 5px;
+            transition: background-color 0.3s ease;
+        }
+        
+        .refresh-btn:hover {
+            background-color: #2980b9;
+        }
+        
+        .loading {
+            display: none;
+            animation: spin 1s linear infinite;
+        }
+        
+        @keyframes spin {
+            0% { transform: rotate(0deg); }
+            100% { transform: rotate(360deg); }
+        }
+        
+        .refresh-active .loading {
+            display: inline-block;
+        }
+        
+        table {
+            width: 100%;
+            border-collapse: collapse;
+            margin-top: 15px;
+            font-size: 0.95rem;
+        }
+        
+        th, td {
+            padding: 12px 15px;
+            text-align: center;
+            border: none;
+        }
+        
+        th {
+            background-color: var(--secondary-color);
+            color: white;
+            font-weight: 600;
+            text-transform: uppercase;
+            font-size: 0.85rem;
+            letter-spacing: 0.5px;
+        }
+        
+        th:first-child {
+            border-top-left-radius: 8px;
+        }
+        
+        th:last-child {
+            border-top-right-radius: 8px;
+        }
+        
+        tbody tr {
+            border-bottom: 1px solid #f1f1f1;
+            transition: background-color 0.3s ease;
+        }
+        
+        tbody tr:last-child {
+            border-bottom: none;
+        }
+        
+        tbody tr:hover {
+            background-color: rgba(52, 152, 219, 0.05);
+        }
+        
+        tbody tr:nth-child(even) {
+            background-color: rgba(236, 240, 241, 0.5);
+        }
+        
+        tbody tr:nth-child(even):hover {
+            background-color: rgba(236, 240, 241, 0.8);
+        }
+        
+        .status {
+            margin-top: 20px;
+            text-align: center;
+            color: var(--secondary-color);
+            font-style: italic;
+            font-size: 0.9rem;
+        }
+        
+        .footer {
+            margin-top: 40px;
+            text-align: center;
+            color: var(--dark-color);
+            font-size: 0.9rem;
+        }
+        
+        .no-data {
+            text-align: center;
+            padding: 30px;
+            color: #7f8c8d;
+            font-style: italic;
+        }
+        
+        @media (max-width: 768px) {
+            .container {
+                padding: 20px;
+            }
+            
+            .panel {
+                padding: 15px;
+            }
+            
+            h1 {
+                font-size: 1.8rem;
+            }
+            
+            th, td {
+                padding: 8px;
+                font-size: 0.85rem;
+            }
+        }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <header>
+            <h1>ESP32 & Weather Data Dashboard</h1>
+            <p>Real-time environmental monitoring system</p>
+        </header>
+        
+        <div class="dashboard">
+            <div class="panel">
+                <div class="panel-header">
+                    <h2>
+                        <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+                            <path d="M14 14.76V3.5a2.5 2.5 0 0 0-5 0v11.26a4.5 4.5 0 1 0 5 0z"></path>
+                        </svg>
+                        ESP32 Sensor Data
+                    </h2>
+                    <button id="refresh-sensor" class="refresh-btn">
+                        <span>Refresh</span>
+                        <svg class="loading" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+                            <path d="M21 12a9 9 0 1 1-6.219-8.56"></path>
+                        </svg>
+                    </button>
+                </div>
+                <div class="table-container">
+                    <table>
+                        <thead>
+                            <tr>
+                                <th>Date</th>
+                                <th>Time</th>
+                                <th>Temperature (°C)</th>
+                                <th>Humidity (%)</th>
+                            </tr>
+                        </thead>
+                        <tbody id="sensor-data-table">
+                            <tr class="no-data">
+                                <td colspan="4">Loading sensor data...</td>
+                            </tr>
+                        </tbody>
+                    </table>
+                </div>
+                <div id="sensor-status" class="status">Last updated: Never</div>
+            </div>
+            
+            <div class="panel">
+                <div class="panel-header">
+                    <h2>
+                        <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+                            <path d="M17 18a5 5 0 0 0-10 0"></path>
+                            <line x1="12" y1="9" x2="12" y2="2"></line>
+                            <line x1="4.22" y1="10.22" x2="5.64" y2="11.64"></line>
+                            <line x1="1" y1="18" x2="3" y2="18"></line>
+                            <line x1="21" y1="18" x2="23" y2="18"></line>
+                            <line x1="18.36" y1="11.64" x2="19.78" y2="10.22"></line>
+                            <line x1="23" y1="22" x2="1" y2="22"></line>
+                            <polyline points="8 6 12 2 16 6"></polyline>
+                        </svg>
+                        Weather Data
+                    </h2>
+                    <button id="refresh-weather" class="refresh-btn">
+                        <span>Refresh</span>
+                        <svg class="loading" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+                            <path d="M21 12a9 9 0 1 1-6.219-8.56"></path>
+                        </svg>
+                    </button>
+                </div>
+                <div class="table-container">
+                    <table>
+                        <thead>
+                            <tr>
+                                <th>Date</th>
+                                <th>Time</th>
+                                <th>Temperature (°C)</th>
+                                <th>Humidity (%)</th>
+                                <th>Dew Point (°C)</th>
+                            </tr>
+                        </thead>
+                        <tbody id="weather-data-table">
+                            <tr class="no-data">
+                                <td colspan="5">Loading weather data...</td>
+                            </tr>
+                        </tbody>
+                    </table>
+                </div>
+                <div id="weather-status" class="status">Last updated: Never</div>
+            </div>
+        </div>
+        
+        <div class="footer">
+            <p>© 2025 ESP32 Weather Monitoring System | Auto-refreshes every 10 seconds</p>
+        </div>
+    </div>
+    
+    <script>
+        let lastSensorData = "";
+        let lastWeatherData = "";
+        let sensorLastUpdated = null;
+        let weatherLastUpdated = null;
+        
+        // Helper function to format date and time
+        function formatDateTime(date) {
+            const options = { 
+                year: 'numeric', 
+                month: 'short', 
+                day: 'numeric', 
+                hour: '2-digit', 
+                minute: '2-digit', 
+                second: '2-digit' 
+            };
+            return new Date(date).toLocaleDateString('en-US', options);
+        }
+        
+        // Function to load data from CSV files
+        async function loadData(csvFile, tableId, statusId, hasDewPoint = false) {
+            try {
+                const refreshBtn = document.getElementById(csvFile === 'sensor_data.csv' ? 'refresh-sensor' : 'refresh-weather');
+                refreshBtn.classList.add('refresh-active');
+                
+                const response = await fetch(csvFile + '?t=' + new Date().getTime()); // Prevent caching
+                const data = await response.text();
+                
+                if ((csvFile === 'sensor_data.csv' && data !== lastSensorData) || 
+                    (csvFile === 'weather_data.csv' && data !== lastWeatherData)) {
+                    
+                    if (csvFile === 'sensor_data.csv') {
+                        lastSensorData = data;
+                        sensorLastUpdated = new Date();
+                    } else {
+                        lastWeatherData = data;
+                        weatherLastUpdated = new Date();
+                    }
+                    
+                    updateTable(data, tableId, hasDewPoint);
+                    updateStatus(statusId, csvFile === 'sensor_data.csv' ? sensorLastUpdated : weatherLastUpdated);
+                }
+                
+                setTimeout(() => {
+                    refreshBtn.classList.remove('refresh-active');
+                }, 500);
+                
+            } catch (error) {
+                console.error("Error loading data from " + csvFile, error);
+                document.getElementById(tableId).innerHTML = `<tr class="no-data"><td colspan="${hasDewPoint ? 5 : 4}">
+                    Error loading data. Please try again.
+                </td></tr>`;
+                
+                document.getElementById(statusId).innerText = `Error: Could not load data`;
+                document.getElementById(csvFile === 'sensor_data.csv' ? 'refresh-sensor' : 'refresh-weather')
+                    .classList.remove('refresh-active');
+            }
+        }
+        
+        // Function to update table with data
+        function updateTable(data, tableId, hasDewPoint) {
+            const rows = data.trim().split('\n');
+            if (rows.length <= 1) {
+                document.getElementById(tableId).innerHTML = `<tr class="no-data"><td colspan="${hasDewPoint ? 5 : 4}">
+                    No data available
+                </td></tr>`;
+                return;
+            }
+            
+            const dataRows = rows.slice(1); // Remove header row
+            let tableContent = "";
+            
+            // Display the most recent 10 entries or fewer if less data is available
+            const displayRows = dataRows.slice(-10).reverse();
+            
+            displayRows.forEach(row => {
+                const columns = row.split(',');
+                if (hasDewPoint && columns.length >= 5) {
+                    tableContent += `<tr>
+                        <td>${columns[0]}</td>
+                        <td>${columns[1]}</td>
+                        <td>${parseFloat(columns[2]).toFixed(1)}</td>
+                        <td>${parseFloat(columns[3]).toFixed(1)}</td>
+                        <td>${parseFloat(columns[4]).toFixed(1)}</td>
+                    </tr>`;
+                } else if (!hasDewPoint && columns.length >= 4) {
+                    tableContent += `<tr>
+                        <td>${columns[0]}</td>
+                        <td>${columns[1]}</td>
+                        <td>${parseFloat(columns[2]).toFixed(1)}</td>
+                        <td>${parseFloat(columns[3]).toFixed(1)}</td>
+                    </tr>`;
+                }
+            });
+            
+            if (tableContent === "") {
+                document.getElementById(tableId).innerHTML = `<tr class="no-data"><td colspan="${hasDewPoint ? 5 : 4}">
+                    No valid data found
+                </td></tr>`;
+            } else {
+                document.getElementById(tableId).innerHTML = tableContent;
+            }
+        }
+        
+        // Function to update status message
+        function updateStatus(statusId, lastUpdated) {
+            if (lastUpdated) {
+                document.getElementById(statusId).innerText = `Last updated: ${formatDateTime(lastUpdated)}`;
+            }
+        }
+        
+        // Function to refresh all data
+        function refreshData() {
+            loadData('sensor_data.csv', 'sensor-data-table', 'sensor-status', false);
+            loadData('weather_data.csv', 'weather-data-table', 'weather-status', true);
+        }
+        
+        // Set up event listeners for refresh buttons
+        document.getElementById('refresh-sensor').addEventListener('click', () => {
+            loadData('sensor_data.csv', 'sensor-data-table', 'sensor-status', false);
+        });
+        
+        document.getElementById('refresh-weather').addEventListener('click', () => {
+            loadData('weather_data.csv', 'weather-data-table', 'weather-status', true);
+        });
+        
+        // Initialize data
+        refreshData();
+        
+        // Auto-refresh every 10 seconds
+        setInterval(refreshData, 10000);
+    </script>
+</body>
+</html>
